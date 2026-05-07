@@ -10,6 +10,7 @@ import io
 import tempfile
 from audiorecorder import audiorecorder
 import re
+import hashlib
 
 ##########Fetching API key from Enviornment file########
 load_dotenv()
@@ -269,6 +270,9 @@ if "session_ended" not in st.session_state:
 if "feedback" not in st.session_state:
     st.session_state.feedback = {"rating": None, "comment": ""}
 
+if "last_audio_hash" not in st.session_state:
+    st.session_state.last_audio_hash = None
+
 
 
 # Reset button AFTER init
@@ -358,22 +362,39 @@ for msg in st.session_state.conversation_history:
         st.write(msg["content"])
 
 
-# Input — mic + text fallback
-# Chat input
-st.markdown("**🎤 Speak to Kiku:**")
-audio = audiorecorder("⏺ Press & Speak", "⏹ Recording...")
+########### Bottom Controls: Mic + End Session ##################
+st.markdown("---")
+col1,col2 = st.columns([2,1])
+with col1:
+    st.markdown("**🎤 Speak to Kiku:**")
+    audio = audiorecorder("⏺ Press & Speak", "⏹ Recording...",key="mic_input")
+with col2:
+    st.markdown("**Session**")
+    end_clicked = st.button("⏹ End Session")
+if end_clicked:
+    st.session_state.session_ended=True
+    st.rerun()
+
+########### Text Input ##################
 
 user_text= st.chat_input("Type your message...")
 user_input = None
+
+
 
 if len(audio) > 0:
     audio_bytes_io=io.BytesIO()
     audio.export(audio_bytes_io,format='wav')
     raw_bytes = audio_bytes_io.getvalue()
-    with st.spinner("Kiku is listening... 👂"):
-        user_input=transcribe_audio(raw_bytes)
-    if user_input:
-        st.info(f"🎤 Kiku heard: *{user_input}*")
+    # create unique fingerprint of current audio
+    audio_hash = hashlib.md5(raw_bytes).hexdigest()
+    #Only transcribe if this is a new Recording
+    if audio_hash != st.session_state.last_audio_hash:
+        st.session_state.last_audio_hash = audio_hash
+        with st.spinner("Kiku is listening... 👂"):
+            user_input=transcribe_audio(raw_bytes)
+        if user_input:
+            st.info(f"🎤 Kiku heard: *{user_input}*")
 elif user_text:
     user_input=user_text
 
@@ -442,8 +463,4 @@ if st.session_state.transcript:
                 mode_tag = entry.get("mode","")
                 st.markdown(f"**🤖 Kiku** `[{mode_tag}]`: {entry['text']}")
 
-st.markdown("---")
-if st.button("⏹ End Session"):
-    st.session_state.session_ended=True
-    st.rerun()
 
