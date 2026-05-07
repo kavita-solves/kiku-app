@@ -9,6 +9,7 @@ from typing import Optional, Literal
 import io
 import tempfile
 from audiorecorder import audiorecorder
+import re
 
 ##########Fetching API key from Enviornment file########
 load_dotenv()
@@ -233,11 +234,6 @@ If mode = "clarification":
 
 
 #first_attempt = 0
-kiku_intro ="""Hi! I’m Kiku 😊
-I love talking and playing with words!
-You can say a sentence, and I’ll talk with you.
-
-What do you want to say?"""
 
 #st.session_state.conversation_history = []
 clarification_inputs = ["what", "huh", "what?", "huh?", "i don't know", "i dont know","repeat","repeat it"]
@@ -264,6 +260,15 @@ if "turn" not in st.session_state:
 if "transcript" not in st.session_state:
     st.session_state.transcript = []
 
+if "child_name" not in st.session_state:
+    st.session_state.child_name = ""
+
+if "session_ended" not in st.session_state:
+    st.session_state.session_ended = False
+
+if "feedback" not in st.session_state:
+    st.session_state.feedback = {"rating": None, "comment": ""}
+
 
 
 # Reset button AFTER init
@@ -272,10 +277,75 @@ if st.button("🔄 Reset Chat"):
     st.session_state.correction_attempts = 0
     st.session_state.turn = 0
     st.session_state.transcript = []
+    st.session_state.child_name = ""
     st.rerun()
 ######### Introduction message #####################
 
 st.title("Kiku English Buddy 😊")
+###############Session end code block ##############
+if st.session_state.session_ended:
+    st.title("Great job today! 🎉")
+
+    # Session stats
+    corrections = sum( 1 for e in st.session_state.transcript
+     if e.get("mode") == "correction"
+     )
+
+    conversations =sum( 1 for e in st.session_state.transcript
+      if e.get("mode") == 'conversation'
+      )
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("💬 Turns", st.session_state.turn)
+    with col2:
+        st.metric("✅ Corrections", corrections)
+    with col3:
+        st.metric("😊 Conversations", conversations)
+    st.markdown("---")
+    st.markdown("### How was this session?")
+
+    col1, col2 =st.columns(2)
+    with col1:
+        if st.button("👍 Helpful"):
+            st.session_state.feedback["rating"]="helpful"
+            st.toast("Thank you for the feedback! 🙏")
+    with col2:
+        if st.button("😕 Needs improvement"):
+            st.session_state.feedback["rating"]="need improvement"
+            st.toast("Thank you for the feedback! 🙏")
+    comment= st.text_area(
+        "Any comments? (optional)",placeholder="What worked well? What was confusing?"
+    )
+    if comment:
+        st.session_state.feedback["comment"]=comment
+
+    if st.button("🔄 Start New Session"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
+    
+    st.stop()
+
+########### Name Input Screen ##################
+if not st.session_state.child_name:
+    st.markdown("### Before we start...")
+    name_input = st.text_input(
+        "What is your name?",
+        placeholder="Type your name here..."
+    )
+    if st.button("Start talking to Kiku! 🎉"):
+        if name_input.strip():
+            st.session_state.child_name = name_input.strip()
+            st.rerun()
+        else:
+            st.warning("Please enter your name first!")
+    st.stop()   # ← stops everything below from running until name is entered
+
+####### Kiku Intro##################
+
+kiku_intro = f"""Hi {st.session_state.child_name}! I'm Kiku 😊
+I love talking and playing with words!
+Press the mic button and say something — I'll talk with you!"""
 
 with st.chat_message("assistant"):
     st.write(kiku_intro)
@@ -322,7 +392,7 @@ if user_input:
 
     # temporary bot reply (dummy)
     sentence = user_input
-    clean_sentence = sentence.lower().strip()
+    clean_sentence = re.sub(r'[^\w\s]', '', sentence.lower().strip())
     is_clarification = any(x in clean_sentence for x in clarification_inputs)
 
     if is_clarification:
@@ -371,3 +441,9 @@ if st.session_state.transcript:
             else:
                 mode_tag = entry.get("mode","")
                 st.markdown(f"**🤖 Kiku** `[{mode_tag}]`: {entry['text']}")
+
+st.markdown("---")
+if st.button("⏹ End Session"):
+    st.session_state.session_ended=True
+    st.rerun()
+
