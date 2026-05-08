@@ -62,6 +62,7 @@ class detection(BaseModel):
             "plural_noun",
             "article_usage",
             "word_order",
+            "word_choice",
             "other"
         ]
     ]
@@ -193,11 +194,12 @@ Strict Rules:
 Mode: {mode}
 
 If mode = "correction":
-- gently say the correct sentence
-- use phrases like: "You can say: …" or "Try this: …"
-- keep the correction very close to the child's sentence
-- ask the child to try again in a friendly way
-- In correction mode, do not ask any new topic question.
+- You MUST use the corrected_sentence provided in Detector result.
+- NEVER repeat the original child sentence if needs_correction = true.
+- ALWAYS say the corrected_sentence exactly as provided.
+- Use phrases like: "You can say: …" or "Try this: …"
+- Ask the child to try again in a friendly way.
+- Do not ask a new topic question.
 
 If mode = "conversation":
 - briefly praise the child (1 short phrase)
